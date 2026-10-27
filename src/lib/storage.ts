@@ -7,6 +7,7 @@ import { asRecord } from './util';
 // 要長期保存請用匯出功能下載檔案。
 const DRAFT_KEY = 'silly-studio:draft:v1';
 const AVATAR_KEY = 'silly-studio:avatar:v1';
+const LAST_EXPORT_KEY = 'silly-studio:last-export:v1';
 
 export interface Draft {
   card: CardData;
@@ -77,10 +78,39 @@ export function saveAvatar(dataUrl: string | null): boolean {
   }
 }
 
+export function loadLastExport(): number | null {
+  try {
+    const value = Number(localStorage.getItem(LAST_EXPORT_KEY));
+    return value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveLastExport(time: number) {
+  try {
+    localStorage.setItem(LAST_EXPORT_KEY, String(time));
+  } catch {
+    // 存不了只是少了提醒，不影響匯出
+  }
+}
+
+/** 請瀏覽器把資料標成「不要自動清除」；瀏覽器可以拒絕，所以只是降低風險 */
+export async function requestPersistentStorage() {
+  try {
+    if (navigator.storage?.persist && !(await navigator.storage.persisted())) {
+      await navigator.storage.persist();
+    }
+  } catch {
+    // 不支援就算了
+  }
+}
+
 export function clearDraft() {
   try {
     localStorage.removeItem(DRAFT_KEY);
     localStorage.removeItem(AVATAR_KEY);
+    localStorage.removeItem(LAST_EXPORT_KEY);
   } catch {
     // 無法存取 localStorage 時不用處理
   }

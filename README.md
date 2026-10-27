@@ -2,6 +2,16 @@
 
 手機優先、電腦也能用的 SillyTavern 角色卡與 Lorebook 編輯器。純前端，資料只存在你的瀏覽器。
 
+## 線上版（可安裝成 app）
+
+https://yolanda1027-sudo.github.io/stEditor/
+
+用手機瀏覽器打開後，從選單選「加到主畫面」／「安裝應用程式」，就會變成一個獨立的 app，開過一次之後沒有網路也能用。
+有新版本時畫面上方會出現「有新版本可以更新」，點「更新」就好。
+
+每次推送到 `ccr-541dd608-6189sf` 分支，GitHub Actions 會自動跑測試、打包並部署（`.github/workflows/deploy.yml`）。
+第一次使用前要到 repo 的 Settings → Pages → Source 選 **GitHub Actions**。
+
 ## 開始使用
 
 ```bash
@@ -36,7 +46,8 @@ npm run dev:phone
 - **長文欄位**：點擊進入全螢幕編輯，手機返回鍵也能退回。
 - **匯入**：角色卡 PNG（`ccv3` 優先，其次 `chara`）／JSON（V1、V2、V3），Lorebook JSON（SillyTavern 世界書、`lorebook_v3`、`character_book`）。
 - **匯出**：PNG 角色卡（同時寫入 `chara` V2 與 `ccv3` V3，與 SillyTavern 相同）、V3 JSON、SillyTavern 世界書 JSON、`lorebook_v3` JSON。
-- **本機草稿**：自動存到 localStorage。這只是草稿，清除瀏覽資料就會消失，重要內容請匯出備份。
+- **本機草稿**：自動存到 localStorage。這只是草稿，清除瀏覽資料就會消失，重要內容請匯出備份。超過 7 天沒匯出時，頁面底部會提醒備份。
+- **PWA**：可安裝到主畫面、離線使用、有新版本時提示更新。
 
 匯入時不認得的欄位（例如其他擴充功能寫入的 `extensions`）會原樣保留，再匯出時不會遺失。
 
@@ -60,4 +71,4 @@ tests/formats.test.ts     格式與 PNG 測試
 
 1. 搜尋／取代、復原／重做、剪貼簿
 2. 更多手機實機測試
-3. 評估 IndexedDB、Capacitor／Android 封裝
+3. 評估 IndexedDB、Capacitor／Android 封裝（APK）

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRegisterSW } from 'virtual:pwa-register/react';
 import './App.css';
 import type { CardData, ListFieldKey, Lorebook, LongFieldKey, WIEntry } from './types';
 import { buildCardV2, buildCardV3, emptyCard, getDepthPrompt, parseCardJson, type DepthPrompt } from './lib/card';
@@ -20,7 +21,16 @@ import {
   imageFileToPng,
   safeFileName,
 } from './lib/files';
-import { clearDraft, loadAvatar, loadDraft, saveAvatar, saveDraft } from './lib/storage';
+import {
+  clearDraft,
+  loadAvatar,
+  loadDraft,
+  loadLastExport,
+  requestPersistentStorage,
+  saveAvatar,
+  saveDraft,
+  saveLastExport,
+} from './lib/storage';
 import { dedupe, rejected } from './lib/util';
 import { CharacterEditor, LIST_FIELDS, LONG_FIELDS } from './components/CharacterEditor';
 import { FullscreenEditor } from './components/FullscreenEditor';
@@ -76,7 +86,16 @@ export default function App() {
   const [saveError, setSaveError] = useState(false);
   const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
+  const [lastExport, setLastExport] = useState<number | null>(loadLastExport);
   const { current, push, back } = useViewStack();
+  const {
+    needRefresh: [needRefresh],
+    updateServiceWorker,
+  } = useRegisterSW();
+
+  useEffect(() => {
+    requestPersistentStorage();
+  }, []);
 
   const notify = useCallback((text: string, tone: 'ok' | 'error' = 'ok') => {
     setToast({ text, tone });
@@ -240,9 +259,16 @@ export default function App() {
 
   const bookForCard = embedLorebook ? lorebook : null;
 
+  function markExported() {
+    const now = Date.now();
+    saveLastExport(now);
+    setLastExport(now);
+  }
+
   function exportCardJson() {
     if (!requireName()) return;
     downloadJson(buildCardV3(values, bookForCard), `${safeFileName(values.name, 'character')}.json`);
+    markExported();
   }
 
   async function exportCardPng() {
@@ -255,6 +281,7 @@ export default function App() {
         JSON.stringify(buildCardV3(values, bookForCard)),
       );
       downloadBlob(new Blob([png as BlobPart], { type: 'image/png' }), `${safeFileName(values.name, 'character')}.png`);
+      markExported();
     } catch (error) {
       notify(errorText(error), 'error');
     }
@@ -267,11 +294,13 @@ export default function App() {
   function exportWorld() {
     if (!lorebook.entries.length) return notify('Lorebook 還沒有條目', 'error');
     downloadJson(toSillyTavernWorld(lorebook), `${lorebookFileName()}.json`);
+    markExported();
   }
 
   function exportLorebookV3() {
     if (!lorebook.entries.length) return notify('Lorebook 還沒有條目', 'error');
     downloadJson(toLorebookV3({ ...lorebook, name: lorebook.name || values.name }), `${lorebookFileName()}.lorebook_v3.json`);
+    markExported();
   }
 
   function newCharacter() {
@@ -281,6 +310,7 @@ export default function App() {
     setLorebook(emptyLorebook());
     setEmbedLorebook(false);
     setAvatar(null);
+    setLastExport(null);
     back();
     setTab('card');
     notify('已開新角色卡');
@@ -382,6 +412,16 @@ export default function App() {
         );
     }
   }
+
+  const daysSinceExport = lastExport ? Math.floor((Date.now() - lastExport) / 86_400_000) : null;
+  const hasWork = hasCardContent(values) || lorebook.entries.length > 0;
+  const backupReminder = !hasWork
+    ? null
+    : daysSinceExport === null
+      ? '💾 還沒有匯出過備份，點這裡匯出'
+      : daysSinceExport >= 7
+        ? `💾 上次匯出是 ${daysSinceExport} 天前，點這裡備份`
+        : null;
 
   function renderView(view: View) {
     switch (view.type) {
@@ -489,10 +529,24 @@ export default function App() {
         </main>
         <footer className="save-status">
           {saveError ? '⚠️ 草稿儲存失敗，請匯出備份' : savedAt ? `草稿已自動儲存 ${new Date(savedAt).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}` : ''}
+          {backupReminder && (
+            <button type="button" className="backup-reminder" onClick={() => push({ type: 'files' })}>
+              {backupReminder}
+            </button>
+          )}
         </footer>
       </div>
 
       {current && <div className="overlay">{renderView(current)}</div>}
+
+      {needRefresh && (
+        <div className="update-banner" role="status">
+          <span>有新版本可以更新</span>
+          <button type="button" className="btn btn-primary small" onClick={() => updateServiceWorker(true)}>
+            更新
+          </button>
+        </div>
+      )}
 
       {toast && (
         <div className={`toast ${toast.tone}`} role="status">
