@@ -40,6 +40,8 @@ import { LorebookEntryEditor } from './components/LorebookEntryEditor';
 import { FilePanel } from './components/FilePanel';
 import { NumberField, SelectField } from './components/fields';
 import { UndoRedoButtons, UndoRedoContext, useUndoHistory, useUndoShortcuts } from './components/UndoRedo';
+import { SearchPanel, initialSearchState, type SearchState } from './components/SearchPanel';
+import { applyReplace, buildPattern, type SearchLocation } from './lib/search';
 
 type Tab = 'card' | 'lorebook';
 
@@ -51,7 +53,8 @@ type TextTarget =
   | { kind: 'bookDescription' };
 
 type View =
-  | { type: 'text'; target: TextTarget }
+  | { type: 'text'; target: TextTarget; select?: [number, number] }
+  | { type: 'search' }
   | { type: 'list'; list: ListFieldKey }
   | { type: 'entry'; uid: number }
   | { type: 'files' };
@@ -88,6 +91,7 @@ export default function App() {
   const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const [lastExport, setLastExport] = useState<number | null>(loadLastExport);
+  const [search, setSearch] = useState<SearchState>(initialSearchState);
   const { current, push, back } = useViewStack();
   const {
     needRefresh: [needRefresh],
@@ -337,7 +341,7 @@ export default function App() {
 
   // ---------- 全螢幕文字編輯 ----------
 
-  function renderTextEditor(target: TextTarget) {
+  function renderTextEditor(target: TextTarget, select?: [number, number]) {
     switch (target.kind) {
       case 'card': {
         const info = LONG_FIELDS[target.field];
@@ -349,6 +353,7 @@ export default function App() {
             placeholder={info.placeholder}
             onChange={(v) => updateField(target.field, v)}
             onClose={back}
+            initialSelection={select}
           />
         );
       }
@@ -368,6 +373,7 @@ export default function App() {
               }))
             }
             onClose={back}
+            initialSelection={select}
           />
         );
       }
@@ -381,6 +387,7 @@ export default function App() {
             placeholder="會在指定深度插入對話中，適合放需要角色一直記得的提醒"
             onChange={(prompt) => updateDepthPrompt({ prompt })}
             onClose={back}
+            initialSelection={select}
             extra={
               <div className="field-grid">
                 <NumberField
@@ -417,6 +424,7 @@ export default function App() {
             placeholder="觸發時要插入提示詞的內容"
             onChange={(content) => updateEntry(target.uid, { content })}
             onClose={back}
+            initialSelection={select}
           />
         );
       }
@@ -428,6 +436,7 @@ export default function App() {
             value={lorebook.description}
             onChange={(description) => updateBook({ description })}
             onClose={back}
+            initialSelection={select}
           />
         );
     }
@@ -443,10 +452,47 @@ export default function App() {
         ? `💾 上次匯出是 ${daysSinceExport} 天前，點這裡備份`
         : null;
 
+  // ---------- 搜尋／取代 ----------
+
+  function runReplace(target?: { loc: SearchLocation; index: number }) {
+    const pattern = buildPattern(search.query, search);
+    if (!(pattern instanceof RegExp)) return;
+    const result = applyReplace(values, lorebook, pattern, search.replacement, search, search, target);
+    if (!result.count) return;
+    setValues(result.card);
+    setLorebook(result.book);
+    notify(target ? '已取代 1 處' : `已取代 ${result.count} 處，可以按「復原」還原`);
+  }
+
+  function openSearchResult(loc: SearchLocation, start: number, end: number) {
+    const select: [number, number] = [start, end];
+    switch (loc.kind) {
+      case 'card':
+        if (loc.field in LONG_FIELDS) push({ type: 'text', target: { kind: 'card', field: loc.field as LongFieldKey }, select });
+        break;
+      case 'cardList':
+        push({ type: 'text', target: { kind: 'listItem', list: loc.list, index: loc.index }, select });
+        break;
+      case 'depthPrompt':
+        push({ type: 'text', target: { kind: 'depthPrompt' }, select });
+        break;
+      case 'bookDescription':
+        push({ type: 'text', target: { kind: 'bookDescription' }, select });
+        break;
+      case 'entry':
+        if (loc.field === 'content') push({ type: 'text', target: { kind: 'entryContent', uid: loc.uid }, select });
+        else push({ type: 'entry', uid: loc.uid });
+        break;
+      case 'entryKey':
+        push({ type: 'entry', uid: loc.uid });
+        break;
+    }
+  }
+
   function renderView(view: View) {
     switch (view.type) {
       case 'text':
-        return renderTextEditor(view.target);
+        return renderTextEditor(view.target, view.select);
       case 'list': {
         const info = LIST_FIELDS[view.list];
         return (
@@ -478,6 +524,18 @@ export default function App() {
           />
         );
       }
+      case 'search':
+        return (
+          <SearchPanel
+            card={values}
+            book={lorebook}
+            state={search}
+            onStateChange={(patch) => setSearch((prev) => ({ ...prev, ...patch }))}
+            onReplace={runReplace}
+            onOpen={openSearchResult}
+            onBack={back}
+          />
+        );
       case 'files':
         return (
           <FilePanel
@@ -510,15 +568,29 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <nav className="tabs" role="tablist">
-              <button type="button" role="tab" aria-selected={tab === 'card'} onClick={() => setTab('card')}>
-                角色卡
+            <div className="tabs-row">
+              <nav className="tabs" role="tablist">
+                <button type="button" role="tab" aria-selected={tab === 'card'} onClick={() => setTab('card')}>
+                  角色卡
+                </button>
+                <button type="button" role="tab" aria-selected={tab === 'lorebook'} onClick={() => setTab('lorebook')}>
+                  Lorebook
+                  {lorebook.entries.length > 0 && <span className="badge">{lorebook.entries.length}</span>}
+                </button>
+              </nav>
+              <button
+                type="button"
+                className="icon-round search-btn"
+                aria-label="搜尋／取代"
+                title="搜尋／取代"
+                onClick={() => push({ type: 'search' })}
+              >
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+                  <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
+                  <path d="m16 16 4.5 4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
               </button>
-              <button type="button" role="tab" aria-selected={tab === 'lorebook'} onClick={() => setTab('lorebook')}>
-                Lorebook
-                {lorebook.entries.length > 0 && <span className="badge">{lorebook.entries.length}</span>}
-              </button>
-            </nav>
+            </div>
           </header>
 
           <main>

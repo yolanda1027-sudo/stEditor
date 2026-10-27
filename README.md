@@ -47,6 +47,7 @@ npm run dev:phone
 - **匯入**：角色卡 PNG（`ccv3` 優先，其次 `chara`）／JSON（V1、V2、V3），Lorebook JSON（SillyTavern 世界書、`lorebook_v3`、`character_book`）。
 - **匯出**：PNG 角色卡（同時寫入 `chara` V2 與 `ccv3` V3，與 SillyTavern 相同）、V3 JSON、SillyTavern 世界書 JSON、`lorebook_v3` JSON。
 - **本機草稿**：自動存到 localStorage。這只是草稿，清除瀏覽資料就會消失，重要內容請匯出備份。超過 7 天沒匯出時，頁面底部會提醒備份。
+- **搜尋／取代**：分頁旁的 🔍。一次搜尋角色卡所有文字欄位、開場白、角色備註、標籤，以及 Lorebook 名稱、說明、條目名稱、關鍵詞、內容；可以只搜角色卡或只搜 Lorebook。支援區分大小寫、正規表示式（取代可用 `$1`）。可以單一取代或全部取代，全部取代算一步、可以復原。點結果會打開該欄位並選取符合的文字。
 - **復原／重做**：頁首、子頁面右上角、全螢幕編輯底部都有 ↶ ↷；電腦可用 Ctrl+Z／Ctrl+Shift+Z（Ctrl+Y）。連續打字算一步，停頓超過 1 秒或換欄位才算新的一步。紀錄只保留在這次開啟期間，重新整理後會清空。
 - **PWA**：可安裝到主畫面、離線使用、有新版本時提示更新。
 
@@ -70,6 +71,6 @@ tests/formats.test.ts     格式與 PNG 測試
 
 ## 之後要做
 
-1. 搜尋／取代、剪貼簿
+1. 剪貼簿
 2. 更多手機實機測試
 3. 評估 IndexedDB、Capacitor／Android 封裝（APK）
