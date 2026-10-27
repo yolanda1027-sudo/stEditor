@@ -47,6 +47,7 @@ npm run dev:phone
 - **匯入**：角色卡 PNG（`ccv3` 優先，其次 `chara`）／JSON（V1、V2、V3），Lorebook JSON（SillyTavern 世界書、`lorebook_v3`、`character_book`）。
 - **匯出**：PNG 角色卡（同時寫入 `chara` V2 與 `ccv3` V3，與 SillyTavern 相同）、V3 JSON、SillyTavern 世界書 JSON、`lorebook_v3` JSON。
 - **本機草稿**：自動存到 localStorage。這只是草稿，清除瀏覽資料就會消失，重要內容請匯出備份。超過 7 天沒匯出時，頁面底部會提醒備份。
+- **復原／重做**：頁首、子頁面右上角、全螢幕編輯底部都有 ↶ ↷；電腦可用 Ctrl+Z／Ctrl+Shift+Z（Ctrl+Y）。連續打字算一步，停頓超過 1 秒或換欄位才算新的一步。紀錄只保留在這次開啟期間，重新整理後會清空。
 - **PWA**：可安裝到主畫面、離線使用、有新版本時提示更新。
 
 匯入時不認得的欄位（例如其他擴充功能寫入的 `extensions`）會原樣保留，再匯出時不會遺失。
@@ -69,6 +70,6 @@ tests/formats.test.ts     格式與 PNG 測試
 
 ## 之後要做
 
-1. 搜尋／取代、復原／重做、剪貼簿
+1. 搜尋／取代、剪貼簿
 2. 更多手機實機測試
 3. 評估 IndexedDB、Capacitor／Android 封裝（APK）

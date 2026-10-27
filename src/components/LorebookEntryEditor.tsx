@@ -12,6 +12,7 @@ import {
   strategyPatch,
   type Strategy,
 } from './lorebookLabels';
+import { UndoRedoButtons } from './UndoRedo';
 
 interface Props {
   entry: WIEntry;
@@ -49,7 +50,7 @@ export function LorebookEntryEditor({ entry, index, total, onChange, onBack, onO
             #{index + 1} / {total}
           </span>
         </div>
-        <span className="topbar-spacer" />
+        <UndoRedoButtons />
       </header>
 
       <div className="page">

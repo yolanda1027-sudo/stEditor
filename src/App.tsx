@@ -39,6 +39,7 @@ import { LorebookList } from './components/LorebookList';
 import { LorebookEntryEditor } from './components/LorebookEntryEditor';
 import { FilePanel } from './components/FilePanel';
 import { NumberField, SelectField } from './components/fields';
+import { UndoRedoButtons, UndoRedoContext, useUndoHistory, useUndoShortcuts } from './components/UndoRedo';
 
 type Tab = 'card' | 'lorebook';
 
@@ -102,6 +103,24 @@ export default function App() {
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), tone === 'error' ? 5000 : 2500);
   }, []);
+
+  // ---------- 復原／重做 ----------
+
+  const applySnapshot = useCallback(
+    (s: { values: CardData; lorebook: Lorebook; embedLorebook: boolean; avatar: string | null }) => {
+      setValues(s.values);
+      setLorebook(s.lorebook);
+      setEmbedLorebook(s.embedLorebook);
+      setAvatar(s.avatar);
+    },
+    [],
+  );
+  const undoRedo = useUndoHistory(
+    { values, lorebook, embedLorebook, avatar },
+    applySnapshot,
+    useCallback((kind: 'undo' | 'redo') => notify(kind === 'undo' ? '已復原' : '已重做'), [notify]),
+  );
+  useUndoShortcuts(undoRedo);
 
   // 自動儲存草稿（停止輸入 0.6 秒後）
   useEffect(() => {
@@ -168,7 +187,7 @@ export default function App() {
 
   function deleteEntry(uid: number) {
     const entry = lorebook.entries.find((e) => e.uid === uid);
-    if (!entry || !confirm(`確定要刪除「${entry.comment || '未命名條目'}」嗎？這個動作無法復原。`)) return;
+    if (!entry || !confirm(`確定要刪除「${entry.comment || '未命名條目'}」嗎？刪除後可以按「復原」救回來。`)) return;
     back();
     setLorebook((prev) => ({ ...prev, entries: prev.entries.filter((e) => e.uid !== uid) }));
     notify('條目已刪除');
@@ -336,11 +355,12 @@ export default function App() {
       case 'listItem': {
         const info = LIST_FIELDS[target.list];
         const items = values[target.list];
+        if (target.index >= items.length) return <MissingView onBack={back} />;
         return (
           <FullscreenEditor
             title={`${info.itemName} ${target.index + 1}`}
             en={info.en}
-            value={items[target.index] ?? ''}
+            value={items[target.index]}
             onChange={(v) =>
               setValues((prev) => ({
                 ...prev,
@@ -388,7 +408,7 @@ export default function App() {
       }
       case 'entryContent': {
         const entry = lorebook.entries.find((e) => e.uid === target.uid);
-        if (!entry) return null;
+        if (!entry) return <MissingView onBack={back} />;
         return (
           <FullscreenEditor
             title={entry.comment || '未命名條目'}
@@ -443,7 +463,7 @@ export default function App() {
       }
       case 'entry': {
         const index = lorebook.entries.findIndex((e) => e.uid === view.uid);
-        if (index < 0) return null;
+        if (index < 0) return <MissingView onBack={back} />;
         return (
           <LorebookEntryEditor
             entry={lorebook.entries[index]}
@@ -477,82 +497,105 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      <div className="home" aria-hidden={current ? true : undefined} inert={current ? true : undefined}>
-        <header className="app-header">
-          <div className="app-header-row">
-            <h1 className="app-title">Silly Studio</h1>
-            <button type="button" className="btn btn-soft" onClick={() => push({ type: 'files' })}>
-              匯入／匯出
+    <UndoRedoContext.Provider value={undoRedo}>
+      <div className="app">
+        <div className="home" aria-hidden={current ? true : undefined} inert={current ? true : undefined}>
+          <header className="app-header">
+            <div className="app-header-row">
+              <h1 className="app-title">Silly Studio</h1>
+              <div className="header-actions">
+                <UndoRedoButtons />
+                <button type="button" className="btn btn-soft" onClick={() => push({ type: 'files' })}>
+                  匯入／匯出
+                </button>
+              </div>
+            </div>
+            <nav className="tabs" role="tablist">
+              <button type="button" role="tab" aria-selected={tab === 'card'} onClick={() => setTab('card')}>
+                角色卡
+              </button>
+              <button type="button" role="tab" aria-selected={tab === 'lorebook'} onClick={() => setTab('lorebook')}>
+                Lorebook
+                {lorebook.entries.length > 0 && <span className="badge">{lorebook.entries.length}</span>}
+              </button>
+            </nav>
+          </header>
+
+          <main>
+            {tab === 'card' ? (
+              <CharacterEditor
+                values={values}
+                updateField={updateField}
+                addTag={addTag}
+                removeTag={removeTag}
+                avatarUrl={avatar}
+                onPickAvatar={pickAvatar}
+                onRemoveAvatar={() => setAvatar(null)}
+                onOpenLongField={(field) => push({ type: 'text', target: { kind: 'card', field } })}
+                onOpenList={(list) => push({ type: 'list', list })}
+                onOpenDepthPrompt={() => push({ type: 'text', target: { kind: 'depthPrompt' } })}
+                lorebookCount={lorebook.entries.length}
+                embedLorebook={embedLorebook}
+                onEmbedLorebookChange={setEmbedLorebook}
+              />
+            ) : (
+              <LorebookList
+                book={lorebook}
+                onBookChange={updateBook}
+                onEntryChange={updateEntry}
+                onAddEntry={addEntry}
+                onOpenEntry={(uid) => push({ type: 'entry', uid })}
+                onOpenDescription={() => push({ type: 'text', target: { kind: 'bookDescription' } })}
+                embedLorebook={embedLorebook}
+                onEmbedLorebookChange={setEmbedLorebook}
+              />
+            )}
+          </main>
+          <footer className="save-status">
+            {saveError ? '⚠️ 草稿儲存失敗，請匯出備份' : savedAt ? `草稿已自動儲存 ${new Date(savedAt).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}` : ''}
+            {backupReminder && (
+              <button type="button" className="backup-reminder" onClick={() => push({ type: 'files' })}>
+                {backupReminder}
+              </button>
+            )}
+          </footer>
+        </div>
+
+        {current && <div className="overlay">{renderView(current)}</div>}
+
+        {needRefresh && (
+          <div className="update-banner" role="status">
+            <span>有新版本可以更新</span>
+            <button type="button" className="btn btn-primary small" onClick={() => updateServiceWorker(true)}>
+              更新
             </button>
           </div>
-          <nav className="tabs" role="tablist">
-            <button type="button" role="tab" aria-selected={tab === 'card'} onClick={() => setTab('card')}>
-              角色卡
-            </button>
-            <button type="button" role="tab" aria-selected={tab === 'lorebook'} onClick={() => setTab('lorebook')}>
-              Lorebook
-              {lorebook.entries.length > 0 && <span className="badge">{lorebook.entries.length}</span>}
-            </button>
-          </nav>
-        </header>
+        )}
 
-        <main>
-          {tab === 'card' ? (
-            <CharacterEditor
-              values={values}
-              updateField={updateField}
-              addTag={addTag}
-              removeTag={removeTag}
-              avatarUrl={avatar}
-              onPickAvatar={pickAvatar}
-              onRemoveAvatar={() => setAvatar(null)}
-              onOpenLongField={(field) => push({ type: 'text', target: { kind: 'card', field } })}
-              onOpenList={(list) => push({ type: 'list', list })}
-              onOpenDepthPrompt={() => push({ type: 'text', target: { kind: 'depthPrompt' } })}
-              lorebookCount={lorebook.entries.length}
-              embedLorebook={embedLorebook}
-              onEmbedLorebookChange={setEmbedLorebook}
-            />
-          ) : (
-            <LorebookList
-              book={lorebook}
-              onBookChange={updateBook}
-              onEntryChange={updateEntry}
-              onAddEntry={addEntry}
-              onOpenEntry={(uid) => push({ type: 'entry', uid })}
-              onOpenDescription={() => push({ type: 'text', target: { kind: 'bookDescription' } })}
-              embedLorebook={embedLorebook}
-              onEmbedLorebookChange={setEmbedLorebook}
-            />
-          )}
-        </main>
-        <footer className="save-status">
-          {saveError ? '⚠️ 草稿儲存失敗，請匯出備份' : savedAt ? `草稿已自動儲存 ${new Date(savedAt).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}` : ''}
-          {backupReminder && (
-            <button type="button" className="backup-reminder" onClick={() => push({ type: 'files' })}>
-              {backupReminder}
-            </button>
-          )}
-        </footer>
+        {toast && (
+          <div className={`toast ${toast.tone}`} role="status">
+            {toast.text}
+          </div>
+        )}
       </div>
+    </UndoRedoContext.Provider>
+  );
+}
 
-      {current && <div className="overlay">{renderView(current)}</div>}
-
-      {needRefresh && (
-        <div className="update-banner" role="status">
-          <span>有新版本可以更新</span>
-          <button type="button" className="btn btn-primary small" onClick={() => updateServiceWorker(true)}>
-            更新
-          </button>
-        </div>
-      )}
-
-      {toast && (
-        <div className={`toast ${toast.tone}`} role="status">
-          {toast.text}
-        </div>
-      )}
+// 復原之後，目前開著的條目或開場白可能已經不存在
+function MissingView({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="subpage">
+      <header className="topbar">
+        <button type="button" className="btn btn-ghost" onClick={onBack}>
+          ‹ 返回
+        </button>
+        <span />
+        <UndoRedoButtons />
+      </header>
+      <div className="page">
+        <p className="empty-state">這個項目已經不存在了（可能是剛剛復原了新增）。按「重做」可以把它找回來。</p>
+      </div>
     </div>
   );
 }

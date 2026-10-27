@@ -444,6 +444,41 @@ select.input {
   padding: 10px 0;
 }
 
+/* ---------- 復原／重做 ---------- */
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.undo-redo {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.icon-round {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--accent-strong);
+}
+
+.icon-round:not(:disabled):active {
+  background: var(--accent-soft);
+}
+
+.icon-round:disabled {
+  color: var(--placeholder);
+  opacity: 0.6;
+}
+
 /* ---------- 角色頭像 ---------- */
 
 .profile {
@@ -693,9 +728,6 @@ select.input {
   margin-left: 0;
 }
 
-.topbar-spacer {
-  width: 64px;
-}
 
 .fullscreen {
   height: 100%;
@@ -729,8 +761,10 @@ select.input {
 }
 
 .fullscreen-footer {
-  padding: 6px 16px calc(6px + env(safe-area-inset-bottom));
-  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px calc(4px + env(safe-area-inset-bottom));
   font-size: 0.75rem;
   color: var(--text-muted);
   border-top: 1px solid var(--surface-soft);
@@ -771,7 +805,7 @@ select.input {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(24px + env(safe-area-inset-bottom));
+  bottom: calc(76px + env(safe-area-inset-bottom));
   z-index: 50;
   transform: translateX(-50%);
   width: max-content;

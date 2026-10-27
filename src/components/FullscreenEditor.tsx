@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { UndoRedoButtons } from './UndoRedo';
 
 interface Props {
   title: string;
@@ -34,7 +35,10 @@ export function FullscreenEditor({ title, en, value, placeholder, onChange, onCl
         aria-label={title}
         onChange={(e) => onChange(e.target.value)}
       />
-      <footer className="fullscreen-footer">{value.length.toLocaleString()} 字</footer>
+      <footer className="fullscreen-footer">
+        <UndoRedoButtons />
+        <span>{value.length.toLocaleString()} 字</span>
+      </footer>
     </div>
   );
 }

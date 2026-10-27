@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { Section } from './fields';
+import { UndoRedoButtons } from './UndoRedo';
 
 interface Props {
   onBack: () => void;
@@ -47,7 +48,7 @@ export function FilePanel(props: Props) {
           <span>匯入／匯出</span>
           <span className="en">Import / Export</span>
         </div>
-        <span className="topbar-spacer" />
+        <UndoRedoButtons />
       </header>
       <div className="page">
         <Section title="匯入" hint="會取代目前的內容">

@@ -1,5 +1,6 @@
 import { countChars, getPreview } from '../lib/util';
 import { NavRow } from './fields';
+import { UndoRedoButtons } from './UndoRedo';
 
 interface Props {
   title: string;
@@ -37,7 +38,7 @@ export function GreetingList({ title, en, itemName, items, onBack, onOpenItem, o
           <span>{title}</span>
           <span className="en">{en}</span>
         </div>
-        <span className="topbar-spacer" />
+        <UndoRedoButtons />
       </header>
       <div className="page">
         {items.length === 0 && <p className="empty-state">還沒有{itemName}，按下方按鈕新增一則。</p>}
