@@ -9,10 +9,22 @@ npm install
 npm run dev        # http://localhost:5173/
 ```
 
+### 用手機測試
+
+電腦和手機連同一個 Wi-Fi，然後：
+
+```bash
+npm run dev:phone
+```
+
+終端機會印出一行 `Network: http://192.168.x.x:5173/`，用手機瀏覽器打開那個網址就可以了。
+打不開的話，通常是電腦防火牆擋住了 5173 port（Windows 第一次執行時會跳視窗問要不要允許，選「允許」）。
+
 其他指令：
 
 | 指令 | 用途 |
 | --- | --- |
+| `npm run dev:phone` | 開放給同一個 Wi-Fi 的手機連線 |
 | `npm run typecheck` | 檢查 TypeScript 錯誤 |
 | `npm test` | 跑格式轉換與 PNG 讀寫的測試 |
 | `npm run build` | 打包到 `dist/` |
