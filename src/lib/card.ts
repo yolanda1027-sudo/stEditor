@@ -1,5 +1,6 @@
 import type { CardData, Lorebook } from '../types';
 import { fromCharacterBook, toCharacterBook } from './lorebook';
+import { ensureScriptNames } from './regexScripts';
 import { asRecord, toStringArray } from './util';
 
 const KNOWN_KEYS = new Set([
@@ -150,6 +151,9 @@ export function buildCardData(card: CardData, book: Lorebook | null) {
   };
   if (book && book.entries.length > 0) {
     data.character_book = toCharacterBook({ ...book, name: book.name || card.name });
+  }
+  if (card.extensions.regex_scripts) {
+    data.extensions = { ...card.extensions, regex_scripts: ensureScriptNames(card.extensions.regex_scripts) };
   }
   return data;
 }

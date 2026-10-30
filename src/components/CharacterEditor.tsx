@@ -41,6 +41,8 @@ interface Props {
   onOpenLongField: (field: LongFieldKey) => void;
   onOpenList: (list: ListFieldKey) => void;
   onOpenDepthPrompt: () => void;
+  regexScriptNames: string[];
+  onOpenRegexScripts: () => void;
   lorebookCount: number;
   embedLorebook: boolean;
   onEmbedLorebookChange: (v: boolean) => void;
@@ -148,6 +150,17 @@ export function CharacterEditor(props: Props) {
           preview={getPreview(depthPrompt.prompt)}
           meta={depthPrompt.prompt ? `深度 ${depthPrompt.depth}` : undefined}
           onClick={props.onOpenDepthPrompt}
+        />
+      </Section>
+
+      <Section title="擴充功能" hint="SillyTavern">
+        <NavRow
+          label="正則腳本"
+          en="Regex Scripts"
+          preview={getPreview(props.regexScriptNames)}
+          emptyText="尚無腳本"
+          meta={props.regexScriptNames.length ? `${props.regexScriptNames.length} 個` : undefined}
+          onClick={props.onOpenRegexScripts}
         />
       </Section>
 

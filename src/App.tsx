@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import './App.css';
 import type { CardData, ListFieldKey, Lorebook, LongFieldKey, WIEntry } from './types';
@@ -42,6 +42,15 @@ import { NumberField, SelectField } from './components/fields';
 import { UndoRedoButtons, UndoRedoContext, useUndoHistory, useUndoShortcuts } from './components/UndoRedo';
 import { SearchPanel, initialSearchState, type SearchState } from './components/SearchPanel';
 import { applyReplace, buildPattern, type SearchLocation } from './lib/search';
+import {
+  getRegexScripts,
+  newRegexScript,
+  parseRegexScriptsJson,
+  withRegexScripts,
+  type RegexScript,
+} from './lib/regexScripts';
+import { RegexScriptList } from './components/RegexScriptList';
+import { RegexScriptEditor } from './components/RegexScriptEditor';
 
 type Tab = 'card' | 'lorebook';
 
@@ -50,11 +59,14 @@ type TextTarget =
   | { kind: 'listItem'; list: ListFieldKey; index: number }
   | { kind: 'depthPrompt' }
   | { kind: 'entryContent'; uid: number }
-  | { kind: 'bookDescription' };
+  | { kind: 'bookDescription' }
+  | { kind: 'regexReplace'; id: string };
 
 type View =
   | { type: 'text'; target: TextTarget; select?: [number, number] }
   | { type: 'search' }
+  | { type: 'regexList' }
+  | { type: 'regex'; id: string }
   | { type: 'list'; list: ListFieldKey }
   | { type: 'entry'; uid: number }
   | { type: 'files' };
@@ -92,6 +104,7 @@ export default function App() {
   const toastTimer = useRef<number | undefined>(undefined);
   const [lastExport, setLastExport] = useState<number | null>(loadLastExport);
   const [search, setSearch] = useState<SearchState>(initialSearchState);
+  const [regexTestInput, setRegexTestInput] = useState('');
   const { current, push, back } = useViewStack();
   const {
     needRefresh: [needRefresh],
@@ -439,6 +452,21 @@ export default function App() {
             initialSelection={select}
           />
         );
+      case 'regexReplace': {
+        const script = regexScripts.find((r) => r.id === target.id);
+        if (!script) return <MissingView onBack={back} />;
+        return (
+          <FullscreenEditor
+            title={script.scriptName || '未命名腳本'}
+            en="Replace With"
+            value={script.replaceString}
+            placeholder="{{match}} 代表整段符合的文字，$1、$2 代表括號抓到的內容"
+            monospace
+            onChange={(replaceString) => updateRegexScript(target.id, { replaceString })}
+            onClose={back}
+          />
+        );
+      }
     }
   }
 
@@ -451,6 +479,80 @@ export default function App() {
       : daysSinceExport >= 7
         ? `💾 上次匯出是 ${daysSinceExport} 天前，點這裡備份`
         : null;
+
+  // ---------- 正則腳本 ----------
+
+  const regexScripts = getRegexScripts(values);
+  const regexMacros = useMemo(() => ({ char: values.nickname || values.name || '角色', user: '使用者' }), [values.nickname, values.name]);
+
+  const updateRegexScripts = useCallback((change: (scripts: RegexScript[]) => RegexScript[]) => {
+    setValues((prev) => withRegexScripts(prev, change(getRegexScripts(prev))));
+  }, []);
+
+  const updateRegexScript = (id: string, patch: Partial<RegexScript>) =>
+    updateRegexScripts((scripts) => scripts.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+
+  function addRegexScript() {
+    const script = newRegexScript();
+    updateRegexScripts((scripts) => [...scripts, script]);
+    push({ type: 'regex', id: script.id });
+  }
+
+  function deleteRegexScript(id: string) {
+    const script = regexScripts.find((s) => s.id === id);
+    if (!script || !confirm(`確定要刪除「${script.scriptName || '未命名腳本'}」嗎？刪除後可以按「復原」救回來。`)) return;
+    back();
+    updateRegexScripts((scripts) => scripts.filter((s) => s.id !== id));
+    notify('腳本已刪除');
+  }
+
+  function duplicateRegexScript(id: string) {
+    const index = regexScripts.findIndex((s) => s.id === id);
+    if (index < 0) return;
+    const original = regexScripts[index];
+    const copy = { ...structuredClone(original), id: newRegexScript().id, scriptName: original.scriptName ? `${original.scriptName}（副本）` : '' };
+    updateRegexScripts((scripts) => {
+      const next = [...scripts];
+      next.splice(index + 1, 0, copy);
+      return next;
+    });
+    notify('已複製腳本，副本在原腳本的下一個');
+  }
+
+  function moveRegexScript(id: string, delta: number) {
+    updateRegexScripts((scripts) => {
+      const index = scripts.findIndex((s) => s.id === id);
+      const target = index + delta;
+      if (index < 0 || target < 0 || target >= scripts.length) return scripts;
+      const next = [...scripts];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  async function importRegexScripts(file: File) {
+    try {
+      const imported = parseRegexScriptsJson(JSON.parse(await file.text()));
+      updateRegexScripts((scripts) => {
+        const ids = new Set(scripts.map((s) => s.id));
+        // 和 SillyTavern 一樣：id 重複時換一個新的，避免蓋掉現有腳本
+        return [...scripts, ...imported.map((s) => (ids.has(s.id) ? { ...s, id: newRegexScript().id } : s))];
+      });
+      notify(`已匯入 ${imported.length} 個腳本`);
+    } catch (error) {
+      notify(error instanceof SyntaxError ? '檔案不是有效的 JSON。' : errorText(error), 'error');
+    }
+  }
+
+  function exportRegexScript(id: string) {
+    const script = regexScripts.find((s) => s.id === id);
+    if (!script) return;
+    downloadJson(script, `regex-${safeFileName(script.scriptName, 'script')}.json`);
+  }
+
+  function exportAllRegexScripts() {
+    downloadJson(regexScripts, `regex-${safeFileName(values.name, 'character')}.json`);
+  }
 
   // ---------- 搜尋／取代 ----------
 
@@ -521,6 +623,39 @@ export default function App() {
             onDelete={() => deleteEntry(view.uid)}
             onDuplicate={() => duplicateEntry(view.uid)}
             onMove={(delta) => moveEntry(view.uid, delta)}
+          />
+        );
+      }
+      case 'regexList':
+        return (
+          <RegexScriptList
+            scripts={regexScripts}
+            onBack={back}
+            onOpen={(id) => push({ type: 'regex', id })}
+            onAdd={addRegexScript}
+            onToggle={(id, enabled) => updateRegexScript(id, { disabled: !enabled })}
+            onImport={importRegexScripts}
+            onExportAll={exportAllRegexScripts}
+          />
+        );
+      case 'regex': {
+        const index = regexScripts.findIndex((s) => s.id === view.id);
+        if (index < 0) return <MissingView onBack={back} />;
+        return (
+          <RegexScriptEditor
+            script={regexScripts[index]}
+            index={index}
+            total={regexScripts.length}
+            macros={regexMacros}
+            testInput={regexTestInput}
+            onTestInputChange={setRegexTestInput}
+            onChange={(patch) => updateRegexScript(view.id, patch)}
+            onOpenReplace={() => push({ type: 'text', target: { kind: 'regexReplace', id: view.id } })}
+            onBack={back}
+            onDelete={() => deleteRegexScript(view.id)}
+            onDuplicate={() => duplicateRegexScript(view.id)}
+            onExport={() => exportRegexScript(view.id)}
+            onMove={(delta) => moveRegexScript(view.id, delta)}
           />
         );
       }
@@ -606,6 +741,8 @@ export default function App() {
                 onOpenLongField={(field) => push({ type: 'text', target: { kind: 'card', field } })}
                 onOpenList={(list) => push({ type: 'list', list })}
                 onOpenDepthPrompt={() => push({ type: 'text', target: { kind: 'depthPrompt' } })}
+                regexScriptNames={regexScripts.map((s) => s.scriptName || '未命名腳本')}
+                onOpenRegexScripts={() => push({ type: 'regexList' })}
                 lorebookCount={lorebook.entries.length}
                 embedLorebook={embedLorebook}
                 onEmbedLorebookChange={setEmbedLorebook}

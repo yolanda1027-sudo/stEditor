@@ -12,9 +12,11 @@ interface Props {
   extra?: ReactNode;
   /** 從搜尋結果打開時，選取符合的文字 */
   initialSelection?: [number, number];
+  /** 程式碼類的內容（例如正則腳本的 HTML）用等寬字 */
+  monospace?: boolean;
 }
 
-export function FullscreenEditor({ title, en, value, placeholder, onChange, onClose, extra, initialSelection }: Props) {
+export function FullscreenEditor({ title, en, value, placeholder, onChange, onClose, extra, initialSelection, monospace }: Props) {
   const textarea = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -47,10 +49,11 @@ export function FullscreenEditor({ title, en, value, placeholder, onChange, onCl
       {extra && <div className="fullscreen-extra">{extra}</div>}
       <textarea
         ref={textarea}
-        className="fullscreen-textarea"
+        className={`fullscreen-textarea ${monospace ? 'mono' : ''}`}
         value={value}
         placeholder={placeholder}
         aria-label={title}
+        spellCheck={monospace ? false : undefined}
         onChange={(e) => onChange(e.target.value)}
       />
       <footer className="fullscreen-footer">
